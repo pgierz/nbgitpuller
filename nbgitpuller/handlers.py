@@ -34,8 +34,8 @@ class SyncHandler(IPythonHandler):
                 self.log.info(data['output'].rstrip())
         else:
             serialized_data = data
-            self.log.info(data)
-        self.write('data: {}\n\n'.format(serialized_data))
+            self.log.info(serialized_data)
+        self.write(f'data: {serialized_data}\n\n')
         yield self.flush()
 
     @web.authenticated
@@ -148,9 +148,9 @@ class UIHandler(IPythonHandler):
         branch = self.get_argument('branch', 'master')
         depth = self.get_argument('depth', None)
         urlPath = self.get_argument('urlpath', None) or \
-                  self.get_argument('urlPath', None)
+                      self.get_argument('urlPath', None)
         subPath = self.get_argument('subpath', None) or \
-                  self.get_argument('subPath', '.')
+                      self.get_argument('subPath', '.')
         app = self.get_argument('app', app_env)
 
         if urlPath:
@@ -159,11 +159,11 @@ class UIHandler(IPythonHandler):
             repo_dir = repo.split('/')[-1]
             path = os.path.join(repo_dir, subPath)
             if app.lower() == 'lab':
-                path = 'lab/tree/' + path
+                path = f'lab/tree/{path}'
             elif path.lower().endswith('.ipynb'):
-                path = 'notebooks/' + path
+                path = f'notebooks/{path}'
             else:
-                path = 'tree/' + path
+                path = f'tree/{path}'
 
         self.write(
             self.render_template(

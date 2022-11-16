@@ -56,10 +56,7 @@ class GitPuller(Configurable):
 
     @default('depth')
     def _depth_default(self):
-        depth = os.environ.get('NBGITPULLER_DEPTH')
-        if depth:
-            return int(depth)
-        return None
+        return int(depth) if (depth := os.environ.get('NBGITPULLER_DEPTH')) else None
 
     def __init__(self, git_url, branch_name, repo_dir, **kwargs):
         assert git_url and branch_name
@@ -85,16 +82,15 @@ class GitPuller(Configurable):
         Clones repository & sets up usernames.
         """
 
-        logging.info('Repo {} doesn\'t exist. Cloning...'.format(self.repo_dir))
+        logging.info(f"Repo {self.repo_dir} doesn\'t exist. Cloning...")
         clone_args = ['git', 'clone']
         if self.depth and self.depth > 0:
             clone_args.extend(['--depth', str(self.depth)])
-        clone_args.extend(['--branch', self.branch_name])
-        clone_args.extend([self.git_url, self.repo_dir])
+        clone_args.extend(['--branch', self.branch_name, self.git_url, self.repo_dir])
         yield from execute_cmd(clone_args)
         yield from execute_cmd(['git', 'config', 'user.email', 'nbgitpuller@example.com'], cwd=self.repo_dir)
         yield from execute_cmd(['git', 'config', 'user.name', 'nbgitpuller'], cwd=self.repo_dir)
-        logging.info('Repo {} initialized'.format(self.repo_dir))
+        logging.info(f'Repo {self.repo_dir} initialized')
 
 
     def reset_deleted_files(self):
@@ -134,16 +130,22 @@ class GitPuller(Configurable):
         """
         Return list of files that have been changed upstream belonging to a particular kind of change
         """
-        output = subprocess.check_output([
-            'git', 'log', '{}..origin/{}'.format(self.branch_name, self.branch_name),
-            '--oneline', '--name-status'
-        ], cwd=self.repo_dir).decode()
-        files = []
-        for line in output.split('\n'):
-            if line.startswith(kind):
-                files.append(os.path.join(self.repo_dir, line.split('\t', 1)[1]))
+        output = subprocess.check_output(
+            [
+                'git',
+                'log',
+                f'{self.branch_name}..origin/{self.branch_name}',
+                '--oneline',
+                '--name-status',
+            ],
+            cwd=self.repo_dir,
+        ).decode()
 
-        return files
+        return [
+            os.path.join(self.repo_dir, line.split('\t', 1)[1])
+            for line in output.split('\n')
+            if line.startswith(kind)
+        ]
 
     def ensure_lock(self):
         """
@@ -156,15 +158,11 @@ class GitPuller(Configurable):
         try:
             lockpath = os.path.join(self.repo_dir, '.git', 'index.lock')
             mtime = os.path.getmtime(lockpath)
-            # A lock file does exist
-            # If it's older than 10 minutes, we just assume it is stale and take over
-            # If not, we fail with an explicit error.
-            if time.time() - mtime > 600:
-                yield "Stale .git/index.lock found, attempting to remove"
-                os.remove(lockpath)
-                yield "Stale .git/index.lock removed"
-            else:
+            if time.time() - mtime <= 600:
                 raise Exception('Recent .git/index.lock found, operation can not proceed. Try again in a few minutes.')
+            yield "Stale .git/index.lock found, attempting to remove"
+            os.remove(lockpath)
+            yield "Stale .git/index.lock removed"
         except FileNotFoundError:
             # No lock is held by other processes, we are free to go
             return
@@ -183,7 +181,7 @@ class GitPuller(Configurable):
                 path_tail = ts.join(os.path.splitext(path_tail))
                 new_file_name = os.path.join(path_head, path_tail)
                 os.rename(f, new_file_name)
-                yield 'Renamed {} to {} to avoid conflict with upstream'.format(f, new_file_name)
+                yield f'Renamed {f} to {new_file_name} to avoid conflict with upstream'
 
 
     def update(self):
@@ -213,7 +211,10 @@ class GitPuller(Configurable):
 
         # Merge master into local!
         yield from self.ensure_lock()
-        yield from execute_cmd(['git', 'merge', '-Xours', 'origin/{}'.format(self.branch_name)], cwd=self.repo_dir)
+        yield from execute_cmd(
+            ['git', 'merge', '-Xours', f'origin/{self.branch_name}'],
+            cwd=self.repo_dir,
+        )
 
 
 

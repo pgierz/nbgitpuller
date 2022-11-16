@@ -63,12 +63,12 @@ class Pusher(Repository):
 class Puller(Repository):
     def __init__(self, remote, path='puller', *args, **kwargs):
         super().__init__(path)
-        remotepath = "file://%s" % os.path.abspath(remote.path)
+        remotepath = f"file://{os.path.abspath(remote.path)}"
         self.gp = GitPuller(remotepath, 'master', path, *args, **kwargs)
 
     def pull_all(self):
         for l in self.gp.pull():
-            print('{}: {}'.format(self.path, l.rstrip()))
+            print(f'{self.path}: {l.rstrip()}')
 
     def __enter__(self):
         print()
@@ -235,7 +235,7 @@ def test_reset_file():
 @pytest.fixture(scope='module')
 def long_remote():
     with Remote("long_remote") as remote, Pusher(remote, "lr_pusher") as pusher:
-        for i in range(0, 10):
+        for i in range(10):
             pusher.git('commit', '--allow-empty', '-m', "Empty message %d" % i)
             pusher.git('push', 'origin', 'master')
 
@@ -326,4 +326,4 @@ def test_pull_on_shallow_clone(long_remote, clean_environment):
             assert orig_head != new_head
             assert new_head == upstream_head
 
-            pusher.git('push', '--force', 'origin', '%s:master' % orig_head)
+            pusher.git('push', '--force', 'origin', f'{orig_head}:master')
